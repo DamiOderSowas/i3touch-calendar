@@ -35,7 +35,8 @@ jobs:
             adb shell wm size 1920x1080
             adb shell wm density 320
             gradle :app:connectedDebugAndroidTest
-            adb shell am start -n de.aufgekaut.i3kalender/.MainActivity
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -W -n de.aufgekaut.i3kalender/.MainActivity
             sleep 2
             adb shell screencap -p /sdcard/calendar.png
             adb pull /sdcard/calendar.png calendar-android8.png
