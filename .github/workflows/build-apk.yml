@@ -35,6 +35,8 @@ jobs:
             adb shell wm size 1920x1080
             adb shell wm density 320
             gradle :app:connectedDebugAndroidTest
+            adb shell wm size 1920x1080
+            adb shell wm density 160
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb shell am start -W -n de.aufgekaut.i3kalender/.MainActivity
             sleep 2

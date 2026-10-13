@@ -46,6 +46,9 @@ public class CalendarUiTest {
             assertNotNull(number); Rect numberRect = new Rect();
             assertTrue(number.getGlobalVisibleRect(numberRect));
             assertEquals(number.getHeight(), numberRect.height());
+            TextView badge = activity.getWindow().getDecorView().findViewWithTag("today-badge");
+            assertNotNull(badge); assertEquals(1, badge.getLineCount());
+            assertTrue(badge.getPaint().measureText("Heute") <= badge.getWidth() - badge.getPaddingLeft() - badge.getPaddingRight());
         });
     }
 

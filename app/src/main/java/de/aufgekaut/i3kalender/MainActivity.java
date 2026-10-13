@@ -155,7 +155,7 @@ public final class MainActivity extends Activity {
                 Calendar next = (Calendar) date.clone(); next.add(Calendar.DAY_OF_MONTH, 1); long end = next.getTimeInMillis();
                 boolean today = sameDay(date, Calendar.getInstance());
                 if (sameDay(date, focus)) focusedRow[0] = weekRow;
-                LinearLayout cell = column(); cell.setPadding(dp(7), dp(3), dp(7), dp(2));
+                LinearLayout cell = column(); cell.setPadding(dp(5), dp(3), dp(5), dp(2));
                 cell.setBackground(shape(today ? 0xfffff1f2 : WHITE, 0xffe9ebf0, dp(8)));
                 LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -1, 1); cp.setMargins(dp(2), dp(2), dp(2), dp(2)); weekRow.addView(cell, cp);
                 LinearLayout dateLine = row(); dateLine.setGravity(Gravity.CENTER_VERTICAL); cell.addView(dateLine);
@@ -165,7 +165,7 @@ public final class MainActivity extends Activity {
                 number.setTag(today ? "today-number" : "day-number");
                 if (today) number.setBackground(shape(RED, RED, dp(14)));
                 dateLine.addView(number, new LinearLayout.LayoutParams(dp(27), dp(27)));
-                if (today) { TextView badge = label("Heute", 11, RED, true); badge.setPadding(dp(4), 0, 0, 0); dateLine.addView(badge); }
+                if (today) { TextView badge = label("Heute", 9, RED, true); badge.setTag("today-badge"); badge.setSingleLine(true); badge.setPadding(dp(2), 0, 0, 0); dateLine.addView(badge); }
                 cell.setOnClickListener(v -> { focus.setTimeInMillis(start); mode = 2; render(); });
                 int total = 0;
                 for (CalendarDb.Event event : events) if (event.start < end && event.end > start) {
