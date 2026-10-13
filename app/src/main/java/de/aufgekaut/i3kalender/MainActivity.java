@@ -13,8 +13,9 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
-import android.widget.GridLayout;
-import android.widget.HorizontalScrollView;
+import android.graphics.Rect;
+import android.view.MotionEvent;
+
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -36,30 +37,80 @@ public final class MainActivity extends Activity {
     private TextView heading;
     private Button monthTab, weekTab, dayTab;
     private int mode = 0;
+    private float touchX, touchY;
+    private boolean trackingSwipe, swiping;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         db = new CalendarDb(this);
         if (state != null) { focus.setTimeInMillis(state.getLong("focus", System.currentTimeMillis())); mode = state.getInt("mode"); }
-        root = column(); root.setBackgroundColor(WHITE); setContentView(root);
-        LinearLayout bar = row(); bar.setGravity(Gravity.CENTER_VERTICAL); bar.setPadding(dp(24), dp(15), dp(24), dp(15)); root.addView(bar);
-        TextView logo = label("Kalender", 25, RED, true); bar.addView(logo);
-        heading = label("", 23, INK, true);
-        LinearLayout.LayoutParams headP = new LinearLayout.LayoutParams(0, -2, 1); headP.leftMargin = dp(38); bar.addView(heading, headP);
-        bar.addView(button("‹", () -> shift(-1), false));
-        bar.addView(button("Heute", () -> { focus = Calendar.getInstance(); render(); }, false));
-        bar.addView(button("›", () -> shift(1), false));
-        monthTab = button("Monat", () -> { mode = 0; render(); }, false); bar.addView(monthTab);
-        weekTab = button("Woche", () -> { mode = 1; render(); }, false); bar.addView(weekTab);
-        dayTab = button("Tag", () -> { mode = 2; render(); }, false); bar.addView(dayTab);
-        bar.addView(button("+ Termin", () -> edit(null, dayStart(focus).getTimeInMillis()), true));
-        View separator = new View(this); separator.setBackgroundColor(0xffe4e4e7); root.addView(separator, new LinearLayout.LayoutParams(-1, dp(1)));
-        content = column(); root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
+        root = column(); root.setBackgroundColor(0xfff6f7fa); setContentView(root);
+        getWindow().setStatusBarColor(WHITE);
+        getWindow().setNavigationBarColor(0xfff6f7fa);
+        LinearLayout header = column(); header.setBackgroundColor(WHITE);
+        header.setPadding(dp(20), dp(12), dp(20), dp(10)); root.addView(header);
+        LinearLayout top = row(); top.setGravity(Gravity.CENTER_VERTICAL); header.addView(top);
+        LinearLayout titles = column();
+        titles.addView(label("Kalender", 26, INK, true));
+        heading = label("", 17, MUTED, false); heading.setSingleLine(true);
+        heading.setTag("period-title");
+        heading.setEllipsize(android.text.TextUtils.TruncateAt.END); titles.addView(heading);
+        top.addView(titles, new LinearLayout.LayoutParams(0, -2, 1));
+        addControl(top, button("Heute", () -> { focus = Calendar.getInstance(); render(); }, false), 100);
+        addControl(top, button("+ Termin", () -> edit(null, dayStart(focus).getTimeInMillis()), true), 120);
+        LinearLayout bar = row(); bar.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams barP = new LinearLayout.LayoutParams(-1, dp(52)); barP.topMargin = dp(10); header.addView(bar, barP);
+        monthTab = button("Monat", () -> { mode = 0; render(); }, false); addControl(bar, monthTab, 95);
+        weekTab = button("Woche", () -> { mode = 1; render(); }, false); addControl(bar, weekTab, 95);
+        dayTab = button("Tag", () -> { mode = 2; render(); }, false); addControl(bar, dayTab, 80);
+        View spacer = new View(this); bar.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
+        addControl(bar, button("‹", () -> shift(-1), false), 52);
+        addControl(bar, button("›", () -> shift(1), false), 52);
+        View separator = new View(this); separator.setBackgroundColor(0xffe6e8ee); root.addView(separator, new LinearLayout.LayoutParams(-1, dp(1)));
+        content = column(); content.setTag("calendar-content"); root.addView(content, new LinearLayout.LayoutParams(-1, 0, 1));
+        TextView hint = label("Nach links oder rechts wischen, um den Zeitraum zu wechseln", 12, MUTED, false);
+        hint.setGravity(Gravity.CENTER); hint.setPadding(0, dp(5), 0, dp(5)); root.addView(hint);
         render();
     }
 
     @Override protected void onSaveInstanceState(Bundle out) {
         out.putLong("focus", focus.getTimeInMillis()); out.putInt("mode", mode); super.onSaveInstanceState(out);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (content != null) render();
+    }
+
+    @Override public boolean dispatchTouchEvent(MotionEvent e) {
+        if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            Rect area = new Rect(); content.getGlobalVisibleRect(area);
+            trackingSwipe = area.contains((int)e.getRawX(), (int)e.getRawY());
+            swiping = false; touchX = e.getRawX(); touchY = e.getRawY();
+        }
+        if (e.getPointerCount() > 1) { trackingSwipe = false; swiping = false; }
+        int direction = SwipeNavigation.direction(e.getRawX() - touchX, e.getRawY() - touchY, dp(70));
+        if (trackingSwipe && e.getActionMasked() == MotionEvent.ACTION_MOVE && direction != 0 && !swiping) {
+            MotionEvent cancel = MotionEvent.obtain(e); cancel.setAction(MotionEvent.ACTION_CANCEL);
+            super.dispatchTouchEvent(cancel); cancel.recycle(); swiping = true;
+        }
+        if (trackingSwipe && swiping) {
+            if (e.getActionMasked() == MotionEvent.ACTION_UP) {
+                trackingSwipe = false; swiping = false;
+                if (direction != 0) shift(direction);
+            } else if (e.getActionMasked() == MotionEvent.ACTION_CANCEL) { trackingSwipe = false; swiping = false; }
+            return true;
+        }
+        if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) trackingSwipe = false;
+        return super.dispatchTouchEvent(e);
+    }
+
+    private void addControl(LinearLayout parent, Button b, int width) {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(width), dp(46)); p.leftMargin = dp(6); parent.addView(b, p);
+    }
+    private void styleTab(Button b, boolean selected) {
+        b.setTextColor(selected ? RED : MUTED);
+        b.setBackground(shape(selected ? 0xffffeded : 0xfff7f8fa, selected ? 0xffffd9dd : 0xfff7f8fa, dp(12)));
     }
 
     private void shift(int amount) {
@@ -69,9 +120,9 @@ public final class MainActivity extends Activity {
 
     private void render() {
         content.removeAllViews();
-        monthTab.setTextColor(mode == 0 ? RED : INK);
-        weekTab.setTextColor(mode == 1 ? RED : INK);
-        dayTab.setTextColor(mode == 2 ? RED : INK);
+        styleTab(monthTab, mode == 0);
+        styleTab(weekTab, mode == 1);
+        styleTab(dayTab, mode == 2);
         heading.setText(mode == 0 ? format("MMMM yyyy", focus.getTime()) :
                 mode == 1 ? "Woche · " + format("MMMM yyyy", focus.getTime()) : format("EEEE, d. MMMM yyyy", focus.getTime()));
         if (mode == 0) month(); else if (mode == 1) week(); else day();
@@ -79,39 +130,47 @@ public final class MainActivity extends Activity {
 
     private void month() {
         Calendar first = dayStart(focus); first.set(Calendar.DAY_OF_MONTH, 1);
-        int offset = (first.get(Calendar.DAY_OF_WEEK) + 5) % 7;
-        Calendar gridStart = (Calendar) first.clone(); gridStart.add(Calendar.DAY_OF_MONTH, -offset);
-        Calendar gridEnd = (Calendar) gridStart.clone(); gridEnd.add(Calendar.DAY_OF_MONTH, 42);
-        List<CalendarDb.Event> events = db.between(gridStart.getTimeInMillis(), gridEnd.getTimeInMillis());
-        ScrollView scroll = new ScrollView(this); content.addView(scroll);
-        GridLayout grid = new GridLayout(this); grid.setColumnCount(7); grid.setPadding(dp(16), dp(8), dp(16), dp(16)); scroll.addView(grid);
+        Calendar date = (Calendar) first.clone(); date.add(Calendar.DAY_OF_MONTH, -(first.get(Calendar.DAY_OF_WEEK) + 5) % 7);
+        Calendar gridEnd = (Calendar) date.clone(); gridEnd.add(Calendar.DAY_OF_MONTH, 42);
+        List<CalendarDb.Event> events = db.between(date.getTimeInMillis(), gridEnd.getTimeInMillis());
+        LinearLayout grid = column(); grid.setPadding(dp(12), dp(8), dp(12), 0);
+        content.addView(grid, new LinearLayout.LayoutParams(-1, -1));
+        LinearLayout weekdays = row(); grid.addView(weekdays, new LinearLayout.LayoutParams(-1, dp(30)));
         String[] names = {"Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"};
-        int width = (getResources().getDisplayMetrics().widthPixels - dp(32)) / 7;
-        for (String name : names) { TextView n = label(name, 15, MUTED, true); n.setGravity(Gravity.CENTER); grid.addView(n, new GridLayout.LayoutParams(new android.view.ViewGroup.LayoutParams(width, dp(36)))); }
-        Calendar date = (Calendar) gridStart.clone();
-        for (int i = 0; i < 42; i++) {
-            final long start = date.getTimeInMillis();
-            Calendar next = (Calendar) date.clone(); next.add(Calendar.DAY_OF_MONTH, 1);
-            long end = next.getTimeInMillis();
-            LinearLayout cell = column(); cell.setPadding(dp(8), dp(5), dp(8), dp(3));
-            GradientDrawable border = shape(WHITE, 0xffededf0, 0); cell.setBackground(border);
-            int numberColor = date.get(Calendar.MONTH) != first.get(Calendar.MONTH) ? MUTED : INK;
-            if (sameDay(date, Calendar.getInstance())) numberColor = RED;
-            TextView number = label(Integer.toString(date.get(Calendar.DAY_OF_MONTH)), 17, numberColor, true);
-            cell.addView(number); cell.setOnClickListener(v -> { focus.setTimeInMillis(start); mode = 2; render(); });
-            int shown = 0;
-            for (CalendarDb.Event event : events) {
-                if (event.start < end && event.end > start) {
-                    if (shown++ >= 3) break;
-                    TextView chip = label((event.allDay ? "" : format("HH:mm ", new Date(event.start))) + event.title, 12, event.color, false);
-                    chip.setSingleLine(true); chip.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                    chip.setPadding(dp(3), dp(3), dp(2), dp(3)); cell.addView(chip);
-                    chip.setOnClickListener(v -> edit(event, start));
+        for (String name : names) {
+            TextView n = label(name, 14, MUTED, true); n.setGravity(Gravity.CENTER);
+            weekdays.addView(n, new LinearLayout.LayoutParams(0, -1, 1));
+        }
+        for (int r = 0; r < 6; r++) {
+            LinearLayout weekRow = row(); grid.addView(weekRow, new LinearLayout.LayoutParams(-1, 0, 1));
+            for (int col = 0; col < 7; col++) {
+                final long start = date.getTimeInMillis();
+                Calendar next = (Calendar) date.clone(); next.add(Calendar.DAY_OF_MONTH, 1); long end = next.getTimeInMillis();
+                boolean today = sameDay(date, Calendar.getInstance());
+                LinearLayout cell = column(); cell.setPadding(dp(7), dp(3), dp(7), dp(2));
+                cell.setBackground(shape(today ? 0xfffff1f2 : WHITE, 0xffe9ebf0, dp(8)));
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -1, 1); cp.setMargins(dp(2), dp(2), dp(2), dp(2)); weekRow.addView(cell, cp);
+                LinearLayout dateLine = row(); dateLine.setGravity(Gravity.CENTER_VERTICAL); cell.addView(dateLine);
+                TextView number = label(Integer.toString(date.get(Calendar.DAY_OF_MONTH)), 16,
+                        today ? WHITE : date.get(Calendar.MONTH) != first.get(Calendar.MONTH) ? MUTED : INK, true);
+                number.setGravity(Gravity.CENTER);
+                if (today) number.setBackground(shape(RED, RED, dp(14)));
+                dateLine.addView(number, new LinearLayout.LayoutParams(dp(27), dp(27)));
+                if (today) { TextView badge = label("Heute", 11, RED, true); badge.setPadding(dp(4), 0, 0, 0); dateLine.addView(badge); }
+                cell.setOnClickListener(v -> { focus.setTimeInMillis(start); mode = 2; render(); });
+                int total = 0;
+                for (CalendarDb.Event event : events) if (event.start < end && event.end > start) {
+                    total++;
+                    if (total <= 2) {
+                        TextView chip = label(event.title, 11, event.color, true);
+                        chip.setSingleLine(true); chip.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                        chip.setPadding(dp(2), 0, 0, 0); cell.addView(chip);
+                        chip.setOnClickListener(v -> edit(event, start));
+                    }
                 }
+                if (total > 2) cell.addView(label("+" + (total - 2) + " weitere", 10, MUTED, false));
+                date = next;
             }
-            if (shown > 3) cell.addView(label("+ weitere", 11, MUTED, false));
-            grid.addView(cell, new GridLayout.LayoutParams(new android.view.ViewGroup.LayoutParams(width, dp(100))));
-            date = next;
         }
     }
 
@@ -119,17 +178,22 @@ public final class MainActivity extends Activity {
         Calendar start = dayStart(focus); start.add(Calendar.DAY_OF_MONTH, -(start.get(Calendar.DAY_OF_WEEK) + 5) % 7);
         Calendar end = (Calendar) start.clone(); end.add(Calendar.DAY_OF_MONTH, 7);
         List<CalendarDb.Event> events = db.between(start.getTimeInMillis(), end.getTimeInMillis());
-        HorizontalScrollView horizontal = new HorizontalScrollView(this); content.addView(horizontal);
-        LinearLayout days = row(); days.setPadding(dp(16), dp(16), dp(16), dp(16)); horizontal.addView(days);
+        LinearLayout days = row(); days.setPadding(dp(12), dp(12), dp(12), 0);
+        content.addView(days, new LinearLayout.LayoutParams(-1, -1));
         for (int i = 0; i < 7; i++) {
             final long from = start.getTimeInMillis();
             Calendar next = (Calendar) start.clone(); next.add(Calendar.DAY_OF_MONTH, 1); long to = next.getTimeInMillis();
-            LinearLayout panel = column(); panel.setPadding(dp(10), dp(8), dp(10), dp(8));
-            panel.setBackground(shape(0xfff8f8fa, 0xffebebef, dp(12)));
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(180), dp(480)); p.rightMargin = dp(8); days.addView(panel, p);
-            panel.addView(label(format("EEE, d. MMM", new Date(from)), 16, sameDay(start, Calendar.getInstance()) ? RED : INK, true));
-            panel.setOnClickListener(v -> { focus.setTimeInMillis(from); mode = 2; render(); });
-            for (CalendarDb.Event event : events) if (event.start < to && event.end > from) addEvent(panel, event);
+            boolean today = sameDay(start, Calendar.getInstance());
+            LinearLayout panel = column(); panel.setPadding(dp(7), dp(8), dp(7), dp(8));
+            panel.setTag("week-day");
+            panel.setBackground(shape(today ? 0xfffff1f2 : WHITE, 0xffe6e8ee, dp(12)));
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -1, 1); p.setMargins(dp(3), 0, dp(3), 0); days.addView(panel, p);
+            TextView title = label(format("EEE, d.", new Date(from)), 16, today ? RED : INK, true); panel.addView(title);
+            if (today) panel.addView(label("Heute", 12, RED, true));
+            title.setOnClickListener(v -> { focus.setTimeInMillis(from); mode = 2; render(); });
+            ScrollView scroll = new ScrollView(this); panel.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+            LinearLayout list = column(); scroll.addView(list);
+            for (CalendarDb.Event event : events) if (event.start < to && event.end > from) addEvent(list, event);
             start = next;
         }
     }
@@ -145,12 +209,13 @@ public final class MainActivity extends Activity {
 
     private void addEvent(LinearLayout parent, CalendarDb.Event event) {
         LinearLayout card = column(); card.setPadding(dp(14), dp(10), dp(14), dp(10));
-        card.setBackground(shape(0xfffafafa, event.color, dp(10)));
+        card.setBackground(shape(WHITE, 0xffe8eaf0, dp(12)));
+        card.setElevation(dp(1));
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2); p.topMargin = dp(10); parent.addView(card, p);
-        card.addView(label(event.title, 17, INK, true));
+        card.addView(label(event.title, mode == 1 ? 13 : 20, event.color, true));
         String time = event.allDay ? "Ganztägig" : format("HH:mm", new Date(event.start)) + " – " + format("HH:mm", new Date(event.end));
-        card.addView(label(time, 14, MUTED, false));
-        if (!event.notes.isEmpty()) card.addView(label(event.notes, 13, MUTED, false));
+        card.addView(label(time, mode == 1 ? 11 : 15, MUTED, false));
+        if (!event.notes.isEmpty() && mode != 1) card.addView(label(event.notes, 14, MUTED, false));
         card.setOnClickListener(v -> edit(event, event.start));
     }
 
@@ -244,7 +309,7 @@ public final class MainActivity extends Activity {
     private Button button(String title, Runnable action, boolean accent) {
         Button b = new Button(this); b.setText(title); b.setTextSize(14); b.setAllCaps(false);
         b.setTextColor(accent ? WHITE : INK); b.setBackground(shape(accent ? RED : 0xfff4f4f6, 0xffe9e9eb, dp(10)));
-        b.setPadding(dp(12), 0, dp(12), 0); b.setMinHeight(dp(48));
+        b.setPadding(dp(10), 0, dp(10), 0); b.setMinWidth(0); b.setMinimumWidth(0); b.setMinHeight(dp(48));
         if (action != null) b.setOnClickListener(v -> action.run()); return b;
     }
     private GradientDrawable shape(int fill, int stroke, int radius) {

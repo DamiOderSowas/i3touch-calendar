@@ -15,7 +15,40 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - run: gradle :app:assembleDebug
+      - name: Restore persistent test signing key
+        env:
+          CALENDAR_KEYSTORE_B64: ${{ secrets.CALENDAR_KEYSTORE_B64 }}
+        run: |
+          mkdir -p "$HOME/.android"
+          printf '%s' "$CALENDAR_KEYSTORE_B64" | base64 --decode > "$HOME/.android/debug.keystore"
+          test -s "$HOME/.android/debug.keystore"
+      - run: gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Enable emulator acceleration
+        run: sudo chmod 666 /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 26
+          arch: x86
+          target: default
+          disable-animations: true
+          script: |
+            adb shell wm size 1920x1080
+            adb shell wm density 320
+            gradle :app:connectedDebugAndroidTest
+            adb shell am start -n de.aufgekaut.i3kalender/.MainActivity
+            sleep 2
+            adb shell screencap -p /sdcard/calendar.png
+            adb pull /sdcard/calendar.png calendar-android8.png
+      - name: Verify APK signature
+        run: '"$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: calendar-test-results
+          path: |
+            app/build/reports/tests/
+            app/build/reports/androidTests/
+            calendar-android8.png
       - uses: actions/upload-artifact@v4
         with:
           name: i3touch-kalender-debug-apk
