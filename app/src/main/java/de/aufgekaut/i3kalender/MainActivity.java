@@ -137,8 +137,11 @@ public final class MainActivity extends Activity {
         Calendar date = (Calendar) first.clone(); date.add(Calendar.DAY_OF_MONTH, -(first.get(Calendar.DAY_OF_WEEK) + 5) % 7);
         Calendar gridEnd = (Calendar) date.clone(); gridEnd.add(Calendar.DAY_OF_MONTH, 42);
         List<CalendarDb.Event> events = db.between(date.getTimeInMillis(), gridEnd.getTimeInMillis());
+        ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
+        content.addView(scroll, new LinearLayout.LayoutParams(-1, -1));
         LinearLayout grid = column(); grid.setPadding(dp(12), dp(8), dp(12), 0);
-        content.addView(grid, new LinearLayout.LayoutParams(-1, -1));
+        scroll.addView(grid);
+        LinearLayout[] focusedRow = {null};
         LinearLayout weekdays = row(); grid.addView(weekdays, new LinearLayout.LayoutParams(-1, dp(30)));
         String[] names = {"Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"};
         for (String name : names) {
@@ -146,11 +149,12 @@ public final class MainActivity extends Activity {
             weekdays.addView(n, new LinearLayout.LayoutParams(0, -1, 1));
         }
         for (int r = 0; r < 6; r++) {
-            LinearLayout weekRow = row(); grid.addView(weekRow, new LinearLayout.LayoutParams(-1, 0, 1));
+            LinearLayout weekRow = row(); grid.addView(weekRow, new LinearLayout.LayoutParams(-1, dp(80), 1));
             for (int col = 0; col < 7; col++) {
                 final long start = date.getTimeInMillis();
                 Calendar next = (Calendar) date.clone(); next.add(Calendar.DAY_OF_MONTH, 1); long end = next.getTimeInMillis();
                 boolean today = sameDay(date, Calendar.getInstance());
+                if (sameDay(date, focus)) focusedRow[0] = weekRow;
                 LinearLayout cell = column(); cell.setPadding(dp(7), dp(3), dp(7), dp(2));
                 cell.setBackground(shape(today ? 0xfffff1f2 : WHITE, 0xffe9ebf0, dp(8)));
                 LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -1, 1); cp.setMargins(dp(2), dp(2), dp(2), dp(2)); weekRow.addView(cell, cp);
@@ -158,6 +162,7 @@ public final class MainActivity extends Activity {
                 TextView number = label(Integer.toString(date.get(Calendar.DAY_OF_MONTH)), 16,
                         today ? WHITE : date.get(Calendar.MONTH) != first.get(Calendar.MONTH) ? MUTED : INK, true);
                 number.setGravity(Gravity.CENTER);
+                number.setTag(today ? "today-number" : "day-number");
                 if (today) number.setBackground(shape(RED, RED, dp(14)));
                 dateLine.addView(number, new LinearLayout.LayoutParams(dp(27), dp(27)));
                 if (today) { TextView badge = label("Heute", 11, RED, true); badge.setPadding(dp(4), 0, 0, 0); dateLine.addView(badge); }
@@ -176,6 +181,10 @@ public final class MainActivity extends Activity {
                 date = next;
             }
         }
+        scroll.post(() -> {
+            if (focusedRow[0] != null) scroll.scrollTo(0, Math.max(0,
+                    focusedRow[0].getTop() - Math.max(0, (scroll.getHeight() - focusedRow[0].getHeight()) / 2)));
+        });
     }
 
     private void week() {

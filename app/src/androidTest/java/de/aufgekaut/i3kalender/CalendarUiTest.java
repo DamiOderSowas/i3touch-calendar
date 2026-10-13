@@ -42,6 +42,10 @@ public class CalendarUiTest {
             assertEquals(today.getWidth(), visible.width());
             assertEquals(today.getHeight(), visible.height());
             assertTrue(countText(activity.getWindow().getDecorView(), "Heute") >= 2);
+            View number = activity.getWindow().getDecorView().findViewWithTag("today-number");
+            assertNotNull(number); Rect numberRect = new Rect();
+            assertTrue(number.getGlobalVisibleRect(numberRect));
+            assertEquals(number.getHeight(), numberRect.height());
         });
     }
 
