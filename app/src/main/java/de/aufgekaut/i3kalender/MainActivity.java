@@ -46,6 +46,7 @@ public final class MainActivity extends Activity {
         if (state != null) { focus.setTimeInMillis(state.getLong("focus", System.currentTimeMillis())); mode = state.getInt("mode"); }
         root = column(); root.setBackgroundColor(0xfff6f7fa); setContentView(root);
         getWindow().setStatusBarColor(WHITE);
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
         getWindow().setNavigationBarColor(0xfff6f7fa);
         LinearLayout header = column(); header.setBackgroundColor(WHITE);
         header.setPadding(dp(20), dp(12), dp(20), dp(10)); root.addView(header);
@@ -116,6 +117,9 @@ public final class MainActivity extends Activity {
     private void shift(int amount) {
         focus.add(mode == 0 ? Calendar.MONTH : mode == 1 ? Calendar.WEEK_OF_YEAR : Calendar.DAY_OF_MONTH, amount);
         render();
+        content.setTranslationX(dp(18) * amount);
+        content.setAlpha(.7f);
+        content.animate().translationX(0).alpha(1).setDuration(180).start();
     }
 
     private void render() {
